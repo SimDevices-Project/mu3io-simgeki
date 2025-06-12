@@ -1,0 +1,19 @@
+{
+  "files.associations": {
+    "limits.h": "c",
+    "stdbool.h": "c",
+    "setupapi.h": "c",
+    "devguid.h": "c",
+    "mu3io.h": "c",
+    "windows.h": "c",
+    "winapifamily.h": "c",
+    "hid.h": "c",
+    "stdlib.h": "c",
+    "hidclass.h": "c",
+    "stdio.h": "c",
+    "stdint.h": "c",
+    "basetyps.h": "c",
+    "initguid.h": "c",
+    "guiddef.h": "c"
+  }
+}
