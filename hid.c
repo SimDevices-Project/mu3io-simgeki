@@ -85,15 +85,14 @@ HRESULT GetHidPathByVidPidMi(const char* vid,
           strncpy_s(path, *path_size, detailData->DevicePath, _TRUNCATE);
           *path_size = pathLen;  // 更新为实际长度
           free(detailData);
-          break;
+          SetupDiDestroyDeviceInfoList(deviceInfoSet);
+          return S_OK;
         }
         free(detailData);
       } else {
         DWORD err = GetLastError();
         printf("ERR: EnumDeviceInterfaces failed: 0x%08X\n", err);
       }
-      SetupDiDestroyDeviceInfoList(deviceInfoSet);
-      return S_OK;
     }
   }
 

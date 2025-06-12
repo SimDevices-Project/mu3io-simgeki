@@ -29,6 +29,7 @@ static char hid_read_buf[REPORT_SIZE];
 
 HANDLE hid_handle = NULL;
 OVERLAPPED ov_read = {0};
+OVERLAPPED ov_write = {0};  // 新增写用 OVERLAPPED
 
 #define VID ("VID_0CA3")
 #define PID ("PID_0021")
@@ -37,6 +38,14 @@ OVERLAPPED ov_read = {0};
 HRESULT hid_on_data(char* dat, size_t length) {
   HidconfigData* data = (HidconfigData*)dat;
   if (length == 64) {
+#ifdef DEBUG
+    for (size_t i = 0; i < length; i++) {
+      printf("%02X ", (unsigned char)dat[i]);
+    }
+    printf("\n");
+    printf("SimGEKI: HID data received, reportID: %02X, command: %02X\n",
+           data->reportID, data->command);
+#endif  // DEBUG
     if (data->reportID == HIDCONFIG_REPORT_ID) {
       switch (data->command) {
         case SP_INPUT_GET:  // 获取输入状态
@@ -86,6 +95,12 @@ HRESULT hid_on_data(char* dat, size_t length) {
           // 读取摇杆位置
           mu3_lever_pos = 0;
           mu3_lever_pos = data->roller_value_sp;
+#ifdef DEBUG
+          printf("SimGEKI: Lever position: %04X\n", mu3_lever_pos);
+          printf("SimGEKI: Operator buttons: %02X\n", mu3_opbtn);
+          printf("SimGEKI: Left game buttons: %02X\n", mu3_left_btn);
+          printf("SimGEKI: Right game buttons: %02X\n", mu3_right_btn);
+#endif  // DEBUG
           break;
         case SP_LED_SET:  // 设置LED状态
           // 这里可以处理LED数据，如果需要的话
@@ -97,16 +112,31 @@ HRESULT hid_on_data(char* dat, size_t length) {
       }
     }
   }
+  return S_OK;
 }
 
 HRESULT hid_write_data(const char* dat, size_t length) {
-  if (hid_handle == INVALID_HANDLE_VALUE)
+  if (hid_handle == INVALID_HANDLE_VALUE) {
+    printf("SimGEKI: HID handle is invalid.\n");
     return E_FAIL;
+  }
+
+  // 异步写：重置写事件并发起 WriteFile
+  ResetEvent(ov_write.hEvent);
   DWORD written;
-  // 同步写：传 NULL OVERLAPPED
-  if (!WriteFile(hid_handle, dat, (DWORD)length, &written, NULL)) {
+  if (!WriteFile(hid_handle, dat, (DWORD)length, &written, &ov_write) &&
+      GetLastError() != ERROR_IO_PENDING) {
+    printf("SimGEKI: WriteFile failed: %u\n", GetLastError());
     return HRESULT_FROM_WIN32(GetLastError());
   }
+
+  // 等待写操作完成
+  if (WaitForSingleObject(ov_write.hEvent, INFINITE) != WAIT_OBJECT_0 ||
+      !GetOverlappedResult(hid_handle, &ov_write, &written, FALSE)) {
+    printf("SimGEKI: Overlapped write failed: %u\n", GetLastError());
+    return E_FAIL;
+  }
+
   return S_OK;
 }
 
@@ -116,7 +146,7 @@ uint16_t mu3_io_get_api_version(void) {
 
 HRESULT mu3_io_init(void) {
   printf("SimGEKI: --- Begin configuration ---\n");
-  printf("SimGEKI: mu3io init...\n");
+  printf("SimGEKI: IO init...\n");
   if (GetHidPathByVidPidMi(VID, PID, MI, hid_path, &hid_path_size) == S_OK) {
     printf("SimGEKI: HID Path: %s\n", hid_path);
   } else {
@@ -133,15 +163,16 @@ HRESULT mu3_io_init(void) {
     printf("SimGEKI: HID device opened successfully.\n");
   }
 
-  if (!ov_read.hEvent) {
-    printf("SimGEKI: Failed to create read event: %u\n", GetLastError());
-    CloseHandle(hid_handle);
-    return E_FAIL;
-  }
-
   // 创建用于异步读的事件
   ov_read.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
   if (!ov_read.hEvent) {
+    CloseHandle(hid_handle);
+    return HRESULT_FROM_WIN32(GetLastError());
+  }
+  // 创建用于异步写的事件
+  ov_write.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+  if (!ov_write.hEvent) {
+    CloseHandle(ov_read.hEvent);
     CloseHandle(hid_handle);
     return HRESULT_FROM_WIN32(GetLastError());
   }
@@ -150,6 +181,7 @@ HRESULT mu3_io_init(void) {
   ResetEvent(ov_read.hEvent);
   if (!ReadFile(hid_handle, hid_read_buf, REPORT_SIZE, NULL, &ov_read) &&
       GetLastError() != ERROR_IO_PENDING) {
+    CloseHandle(ov_write.hEvent);
     CloseHandle(ov_read.hEvent);
     CloseHandle(hid_handle);
     return HRESULT_FROM_WIN32(GetLastError());

@@ -59,11 +59,13 @@ enum {
 
 #pragma pack(push, 1)
 
-typedef enum {
+typedef uint8_t HidconfigReportID;
+enum {
   HIDCONFIG_REPORT_ID = 0xAA,  // Custom HID Report ID
-} HidconfigReportID;
+};
 
-typedef enum {
+typedef uint8_t HidconfigLedTag;
+enum {
   LEDTAG_RGB_PORT_LEFT = 0x01,
   LEDTAG_RGB_PORT_RIGHT = 0x00,
   LEDTAG_RGB_PORT_UART = 0x02,
@@ -71,9 +73,9 @@ typedef enum {
   LEDTAG_RGB_7C = 0xF0,  // 7C RGB LED
 
   LEDTAG_ALL = 0xFF,  // All LEDs
-} HidconfigLedTag;
-
-typedef enum {
+};
+typedef uint8_t HidconfigCommand;
+enum {
   ROLLER_SET_OFFSET = 0xA0,
   ROLLER_GET_DATA = 0xA1,
 
@@ -84,16 +86,16 @@ typedef enum {
 
   UPDATE_FIRMWARE = 0xF1,
   CMD_NOT_SUPPORT = 0xFF,
-} HidconfigCommand;
-
-typedef enum {
+};
+typedef uint8_t LED_7C_Tag;
+enum {
   LED_7C_L1 = 0x00,
   LED_7C_L2 = 0x02,
   LED_7C_L3 = 0x04,
   LED_7C_R1 = 0x01,
   LED_7C_R2 = 0x03,
   LED_7C_R3 = 0x05,
-} LED_7C_Tag;
+};
 
 typedef struct {
   HidconfigReportID reportID;
@@ -273,3 +275,5 @@ MU3IO_API HRESULT mu3_io_led_init(void);
    Minimum API version: 0x0101 */
 
 MU3IO_API void mu3_io_led_set_colors(uint8_t board, uint8_t* rgb);
+
+HRESULT hid_write_data(const char* dat, size_t length);
