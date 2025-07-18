@@ -52,6 +52,11 @@ Clean build artifacts:
 make clean
 ```
 
+Run comprehensive tests:
+```bash
+./test_all.sh
+```
+
 ### Using Batch Files (Windows)
 
 For Windows development:
@@ -90,11 +95,23 @@ The HID configuration supports:
 
 ## Development
 
+### Testing
+
+The repository includes several testing options:
+
+1. **Comprehensive test script**: `./test_all.sh` - Tests all build targets and verifies functionality
+2. **DLL loading test**: `build/dll_test.exe` - Tests DLL loading and API calls
+3. **Original test program**: `build/test.exe` - Basic HID communication test
+4. **Stub DLL**: `build/mu3io_stub.dll` - Testing without hardware requirements
+
 ### File Structure
 
 - `mu3io.c/.h` - Main library implementation
+- `mu3io_stub.c` - Stub implementation for testing without hardware
 - `hid.c/.h` - HID device communication
-- `test.c` - Test program for verification
+- `test.c` - Basic test program for verification
+- `dll_test.c` - Comprehensive DLL testing program
+- `test_all.sh` - Comprehensive test script
 - `Makefile` - Cross-platform build system
 - `.github/workflows/build.yml` - CI/CD pipeline
 
