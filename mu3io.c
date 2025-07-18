@@ -1,7 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
 #define _GNU_SOURCE
 
+#ifndef MU3IO_EXPORTS
 #define MU3IO_EXPORTS
+#endif
 
 #include <windows.h>
 #include <setupapi.h>
@@ -30,6 +32,39 @@ static char hid_read_buf[REPORT_SIZE];
 HANDLE hid_handle = NULL;
 OVERLAPPED ov_read = {0};
 OVERLAPPED ov_write = {0};  // 新增写用 OVERLAPPED
+
+// DLL entry point
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
+    (void)hinstDLL;
+    (void)lpvReserved;
+    
+    switch (fdwReason) {
+        case DLL_PROCESS_ATTACH:
+            printf("SimGEKI: DLL_PROCESS_ATTACH\n");
+            break;
+        case DLL_PROCESS_DETACH:
+            printf("SimGEKI: DLL_PROCESS_DETACH\n");
+            // Cleanup resources
+            if (hid_handle != INVALID_HANDLE_VALUE && hid_handle != NULL) {
+                CloseHandle(hid_handle);
+                hid_handle = NULL;
+            }
+            if (ov_read.hEvent) {
+                CloseHandle(ov_read.hEvent);
+                ov_read.hEvent = NULL;
+            }
+            if (ov_write.hEvent) {
+                CloseHandle(ov_write.hEvent);
+                ov_write.hEvent = NULL;
+            }
+            break;
+        case DLL_THREAD_ATTACH:
+        case DLL_THREAD_DETACH:
+            // No per-thread initialization needed
+            break;
+    }
+    return TRUE;
+}
 
 #define VID ("VID_0CA3")
 #define PID ("PID_0021")
