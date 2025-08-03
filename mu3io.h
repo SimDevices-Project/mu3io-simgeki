@@ -20,6 +20,10 @@
 #define MU3IO_API
 #endif
 
+#define VID ("VID_8088")
+#define PID ("PID_0101")
+#define MI ("MI_05")
+
 enum {
   MU3_IO_OPBTN_TEST = 0x01,
   MU3_IO_OPBTN_SERVICE = 0x02,
@@ -148,21 +152,21 @@ typedef struct {
 } HidconfigData;
 
 enum {
-  BT_COIN = 0x0001,
+  BT_COIN = 0x8000,
 
-  BT_TEST = 0x0004,
-  BT_SERVICE = 0x0008,
-  BT_RMENU = 0x0010,
-  BT_LMENU = 0x0020,
-  BT_LSIDE = 0x0040,
-  BT_R_C = 0x0080,
-  BT_R_B = 0x0100,
-  BT_R_A = 0x0200,
+  BT_SERVICE = 0x2000,
+  BT_TEST = 0x1000,
+  BT_RMENU = 0x0800,
+  BT_LMENU = 0x0400,
+  BT_LSIDE = 0x0200,
+  BT_R_C = 0x0100,
+  BT_R_B = 0x0080,
+  BT_R_A = 0x0040,
 
-  BT_RSIDE = 0x0800,
-  BT_L_C = 0x1000,
-  BT_L_B = 0x2000,
-  BT_L_A = 0x4000,
+  BT_RSIDE = 0x0010,
+  BT_L_C = 0x0008,
+  BT_L_B = 0x0004,
+  BT_L_A = 0x0001,
 
 };
 
