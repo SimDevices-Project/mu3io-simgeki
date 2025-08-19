@@ -20,8 +20,10 @@
 #define MU3IO_API
 #endif
 
-#define VID ("VID_8088")
-#define PID ("PID_0101")
+// #define VID ("VID_8088")
+// #define PID ("PID_0101")
+#define VID ("VID_0CA3")
+#define PID ("PID_0021")
 #define MI ("MI_05")
 
 enum {
@@ -87,6 +89,8 @@ enum {
 
   SP_LED_SET = 0xE0,    // Special LED set command, for pc dll
   SP_INPUT_GET = 0xE1,  // Special input get command, for pc dll
+  SP_INPUT_GET_START = 0xE2,
+  SP_INPUT_GET_END = 0xE3,
 
   UPDATE_FIRMWARE = 0xF1,
   CMD_NOT_SUPPORT = 0xFF,
@@ -166,7 +170,7 @@ enum {
   BT_RSIDE = 0x0010,
   BT_L_C = 0x0008,
   BT_L_B = 0x0004,
-  BT_L_A = 0x0001,
+  BT_L_A = 0x0002,
 
 };
 
