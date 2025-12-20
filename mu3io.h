@@ -20,6 +20,12 @@
 #define MU3IO_API
 #endif
 
+// #define VID ("VID_8088")
+// #define PID ("PID_0101")
+#define VID ("VID_0CA3")
+#define PID ("PID_0021")
+#define MI ("MI_05")
+
 enum {
   MU3_IO_OPBTN_TEST = 0x01,
   MU3_IO_OPBTN_SERVICE = 0x02,
@@ -83,6 +89,8 @@ enum {
 
   SP_LED_SET = 0xE0,    // Special LED set command, for pc dll
   SP_INPUT_GET = 0xE1,  // Special input get command, for pc dll
+  SP_INPUT_GET_START = 0xE2,
+  SP_INPUT_GET_END = 0xE3,
 
   UPDATE_FIRMWARE = 0xF1,
   CMD_NOT_SUPPORT = 0xFF,
@@ -148,21 +156,21 @@ typedef struct {
 } HidconfigData;
 
 enum {
-  BT_COIN = 0x0001,
+  BT_COIN = 0x8000,
 
-  BT_TEST = 0x0004,
-  BT_SERVICE = 0x0008,
-  BT_RMENU = 0x0010,
-  BT_LMENU = 0x0020,
-  BT_LSIDE = 0x0040,
-  BT_R_C = 0x0080,
-  BT_R_B = 0x0100,
-  BT_R_A = 0x0200,
+  BT_SERVICE = 0x2000,
+  BT_TEST = 0x1000,
+  BT_RMENU = 0x0800,
+  BT_LMENU = 0x0400,
+  BT_LSIDE = 0x0200,
+  BT_R_C = 0x0100,
+  BT_R_B = 0x0080,
+  BT_R_A = 0x0040,
 
-  BT_RSIDE = 0x0800,
-  BT_L_C = 0x1000,
-  BT_L_B = 0x2000,
-  BT_L_A = 0x4000,
+  BT_RSIDE = 0x0010,
+  BT_L_C = 0x0008,
+  BT_L_B = 0x0004,
+  BT_L_A = 0x0002,
 
 };
 

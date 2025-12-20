@@ -1,0 +1,88 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc mingw-w64 build-essential
+        
+    - name: Build DLL and Test
+      run: |
+        make clean
+        make all
+        
+    - name: Check DLL exports
+      run: |
+        make check
+        
+    - name: Generate .def file
+      run: |
+        make dll-def
+        
+    - name: List build artifacts
+      run: |
+        ls -la build/
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: mu3io-windows-dll
+        path: |
+          build/mu3io.dll
+          build/mu3io-def.dll
+          build/test.exe
+          build/mu3io.def
+        retention-days: 30
+
+  build-cross-platform:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc mingw-w64 build-essential
+        
+    - name: Install dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # Use MSYS2 for Windows builds
+        choco install msys2 -y
+        
+    - name: Build with Makefile (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        make clean
+        make all
+        
+    - name: Build with batch files (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        mkdir build
+        gcc -shared -o build/mu3io.dll mu3io.c hid.c -I. -lsetupapi -DMU3IO_EXPORTS
+        gcc hid.c mu3io.c test.c -o build/test.exe -lsetupapi
+        
+    - name: Verify build artifacts
+      run: |
+        ls -la build/ || dir build\

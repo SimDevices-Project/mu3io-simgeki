@@ -1,1 +1,22 @@
-/build
+# Build artifacts
+/build/
+*.dll
+*.exe
+*.o
+*.obj
+*.lib
+*.def
+
+# IDE files
+.vscode/
+.vs/
+*.vcxproj*
+*.sln
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
