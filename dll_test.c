@@ -20,12 +20,12 @@ int main() {
     if (!hDLL) {
         printf("Failed to load mu3io_stub.dll, error: %lu\n", GetLastError());
         // Try the regular DLL
-        hDLL = LoadLibrary("build/mu3io.dll");
+    hDLL = LoadLibrary("build/simgeki_io.dll");
         if (!hDLL) {
-            printf("Failed to load mu3io.dll, error: %lu\n", GetLastError());
+            printf("Failed to load simgeki_io.dll, error: %lu\n", GetLastError());
             return 1;
         }
-        printf("Loaded mu3io.dll successfully\n");
+    printf("Loaded simgeki_io.dll successfully\n");
     } else {
         printf("Loaded mu3io_stub.dll successfully\n");
     }

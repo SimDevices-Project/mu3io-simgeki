@@ -21,6 +21,10 @@
 
 #define REPORT_SIZE 64  // 1B ReportID + 63B 数据
 
+// USB reconnection and timeout constants
+#define USB_RECONNECT_POLL_INTERVAL 60  // Polls between reconnection attempts
+#define USB_WRITE_TIMEOUT_MS 1000       // Write operation timeout in milliseconds
+
 static uint8_t mu3_opbtn;
 static uint8_t mu3_left_btn;
 static uint8_t mu3_right_btn;
@@ -32,6 +36,8 @@ static size_t hid_path_size = 1024;
 static char hid_read_buf[REPORT_SIZE];
 
 static uint8_t poll_state = 0;
+static bool usb_connected = false;
+static bool usb_init_attempted = false;
 
 HANDLE hid_handle = NULL;
 OVERLAPPED ov_read = {0};
@@ -39,6 +45,15 @@ OVERLAPPED ov_write = {0};  // 新增写用 OVERLAPPED
 
 // #define DEBUG
 // #define DEBUG_TEXT_ONLY
+
+// Check if error code indicates USB device disconnection
+static bool is_usb_disconnection_error(DWORD error) {
+  return (error == ERROR_BAD_COMMAND || 
+          error == ERROR_NOT_READY || 
+          error == ERROR_DEVICE_NOT_CONNECTED || 
+          error == ERROR_GEN_FAILURE ||
+          error == ERROR_OPERATION_ABORTED);
+}
 
 HRESULT hid_on_data(char* dat, size_t length) {
   HidconfigData* data = (HidconfigData*)dat;
@@ -131,14 +146,90 @@ HRESULT hid_on_data(char* dat, size_t length) {
   return S_OK;
 }
 
+// Clean up USB resources
+static void usb_cleanup(void) {
+  if (ov_write.hEvent != NULL) {
+    CloseHandle(ov_write.hEvent);
+    ov_write.hEvent = NULL;
+  }
+  if (ov_read.hEvent != NULL) {
+    CloseHandle(ov_read.hEvent);
+    ov_read.hEvent = NULL;
+  }
+  if (hid_handle != NULL && hid_handle != INVALID_HANDLE_VALUE) {
+    CloseHandle(hid_handle);
+    hid_handle = NULL;
+  }
+  usb_connected = false;
+  poll_state = 0;
+}
+
+// Initialize USB device
+static HRESULT usb_init(void) {
+  // Clean up any existing connection first
+  usb_cleanup();
+  
+  dprintf("SimGEKI: Attempting to connect USB device...\n");
+  
+  // Try to get HID device path
+  hid_path_size = sizeof(hid_path);
+  if (GetHidPathByVidPidMi(VID, PID, MI, hid_path, &hid_path_size) != S_OK) {
+    dprintf("SimGEKI: USB device not found.\n");
+    return S_FALSE;
+  }
+  
+  dprintf("SimGEKI: HID Path: %s\n", hid_path);
+  
+  // Try to open the HID device
+  hid_handle = CreateFileA(hid_path, GENERIC_READ | GENERIC_WRITE,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                           OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+  if (hid_handle == INVALID_HANDLE_VALUE) {
+    dprintf("SimGEKI: Failed to open HID device.\n");
+    hid_handle = NULL;
+    return S_FALSE;
+  }
+  
+  dprintf("SimGEKI: HID device opened successfully.\n");
+  
+  // Create event for async read
+  ov_read.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+  if (!ov_read.hEvent) {
+    CloseHandle(hid_handle);
+    hid_handle = NULL;
+    return HRESULT_FROM_WIN32(GetLastError());
+  }
+  
+  // Create event for async write
+  ov_write.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+  if (!ov_write.hEvent) {
+    CloseHandle(ov_read.hEvent);
+    ov_read.hEvent = NULL;
+    CloseHandle(hid_handle);
+    hid_handle = NULL;
+    return HRESULT_FROM_WIN32(GetLastError());
+  }
+  
+  // Start first async read
+  ResetEvent(ov_read.hEvent);
+  if (!ReadFile(hid_handle, hid_read_buf, REPORT_SIZE, NULL, &ov_read) &&
+      GetLastError() != ERROR_IO_PENDING) {
+    usb_cleanup();
+    return HRESULT_FROM_WIN32(GetLastError());
+  }
+  
+  usb_connected = true;
+  dprintf("SimGEKI: USB device initialized successfully.\n");
+  return S_OK;
+}
+
 HRESULT hid_write_data(const char* dat, size_t length) {
 #ifdef DEBUG_TEXT_ONLY
   dprintf("SimGEKI: HID write data.\n");
   return S_OK;
 #endif  // DEBUG_TEXT_ONLY
-  if (hid_handle == INVALID_HANDLE_VALUE) {
-    dprintf("SimGEKI: HID handle is invalid.\n");
-    return E_FAIL;
+  if (!usb_connected || hid_handle == NULL || hid_handle == INVALID_HANDLE_VALUE) {
+    return S_FALSE;
   }
 
   // 异步写：重置写事件并发起 WriteFile
@@ -146,14 +237,31 @@ HRESULT hid_write_data(const char* dat, size_t length) {
   DWORD written;
   if (!WriteFile(hid_handle, dat, (DWORD)length, &written, &ov_write) &&
       GetLastError() != ERROR_IO_PENDING) {
-    dprintf("SimGEKI: WriteFile failed: %u\n", GetLastError());
-    return HRESULT_FROM_WIN32(GetLastError());
+    DWORD error = GetLastError();
+    dprintf("SimGEKI: WriteFile failed: %lu\n", (unsigned long)error);
+    // Check if device disconnected
+    if (is_usb_disconnection_error(error)) {
+      dprintf("SimGEKI: USB device appears to be disconnected.\n");
+      usb_cleanup();
+    }
+    return HRESULT_FROM_WIN32(error);
   }
 
   // 等待写操作完成
-  if (WaitForSingleObject(ov_write.hEvent, INFINITE) != WAIT_OBJECT_0 ||
-      !GetOverlappedResult(hid_handle, &ov_write, &written, FALSE)) {
-    dprintf("SimGEKI: Overlapped write failed: %u\n", GetLastError());
+  DWORD waitResult = WaitForSingleObject(ov_write.hEvent, USB_WRITE_TIMEOUT_MS);
+  if (waitResult != WAIT_OBJECT_0) {
+    dprintf("SimGEKI: Write operation timeout or failed.\n");
+    return E_FAIL;
+  }
+  
+  if (!GetOverlappedResult(hid_handle, &ov_write, &written, FALSE)) {
+    DWORD error = GetLastError();
+    dprintf("SimGEKI: Overlapped write failed: %lu\n", (unsigned long)error);
+    // Check if device disconnected
+    if (is_usb_disconnection_error(error)) {
+      dprintf("SimGEKI: USB device appears to be disconnected.\n");
+      usb_cleanup();
+    }
     return E_FAIL;
   }
 
@@ -171,46 +279,16 @@ HRESULT mu3_io_init(void) {
 #endif  // DEBUG_TEXT_ONLY
   dprintf("SimGEKI: --- Begin configuration ---\n");
   dprintf("SimGEKI: IO init...\n");
-  if (GetHidPathByVidPidMi(VID, PID, MI, hid_path, &hid_path_size) == S_OK) {
-    dprintf("SimGEKI: HID Path: %s\n", hid_path);
+  
+  // Initialize USB device, but don't fail if it's not connected
+  HRESULT hr = usb_init();
+  if (hr == S_OK) {
+    dprintf("SimGEKI: USB device connected and initialized.\n");
   } else {
-    dprintf("SimGEKI: Failed to get HID Path.\n");
-    return E_FAIL;
+    dprintf("SimGEKI: USB device not connected, will retry during polling.\n");
   }
-  hid_handle = CreateFileA(hid_path, GENERIC_READ | GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                           OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
-  if (hid_handle == INVALID_HANDLE_VALUE) {
-    dprintf("SimGEKI: Failed to open HID device.\n");
-    return E_FAIL;
-  } else {
-    dprintf("SimGEKI: HID device opened successfully.\n");
-  }
-
-  // 创建用于异步读的事件
-  ov_read.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-  if (!ov_read.hEvent) {
-    CloseHandle(hid_handle);
-    return HRESULT_FROM_WIN32(GetLastError());
-  }
-  // 创建用于异步写的事件
-  ov_write.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-  if (!ov_write.hEvent) {
-    CloseHandle(ov_read.hEvent);
-    CloseHandle(hid_handle);
-    return HRESULT_FROM_WIN32(GetLastError());
-  }
-
-  // 发起第一轮异步读
-  ResetEvent(ov_read.hEvent);
-  if (!ReadFile(hid_handle, hid_read_buf, REPORT_SIZE, NULL, &ov_read) &&
-      GetLastError() != ERROR_IO_PENDING) {
-    CloseHandle(ov_write.hEvent);
-    CloseHandle(ov_read.hEvent);
-    CloseHandle(hid_handle);
-    return HRESULT_FROM_WIN32(GetLastError());
-  }
-
+  
+  usb_init_attempted = true;
   dprintf("SimGEKI: ---  End  configuration ---\n");
   return S_OK;
 }
@@ -222,8 +300,24 @@ HRESULT mu3_io_poll(void) {
   return S_OK;
 #endif  // DEBUG_TEXT_ONLY
 #ifdef DEBUG
-  dprintf("SimGEKI: MU3 IO Polling\n");
+  // dprintf("SimGEKI: MU3 IO Polling\n");
 #endif  // DEBUG
+
+  // If USB is not connected, try to connect
+  if (!usb_connected) {
+    // Only try to reconnect every ~60 polls to avoid spamming
+    static int reconnect_counter = 0;
+    reconnect_counter++;
+    if (reconnect_counter >= USB_RECONNECT_POLL_INTERVAL) {
+      reconnect_counter = 0;
+  HRESULT hr = usb_init();
+  if (hr == S_OK) {
+        dprintf("SimGEKI: USB device reconnected successfully.\n");
+      }
+    }
+    return S_OK;
+  }
+
   DWORD bytes = 0;
   int packet_count = 0;
   char last_packet[REPORT_SIZE];
@@ -239,9 +333,31 @@ HRESULT mu3_io_poll(void) {
 
     // 立即发起下一次异步读
     ResetEvent(ov_read.hEvent);
-    if (!ReadFile(hid_handle, hid_read_buf, REPORT_SIZE, NULL, &ov_read) &&
-        GetLastError() != ERROR_IO_PENDING) {
-      break;
+    if (!ReadFile(hid_handle, hid_read_buf, REPORT_SIZE, NULL, &ov_read)) {
+      DWORD error = GetLastError();
+      if (error != ERROR_IO_PENDING) {
+        dprintf("SimGEKI: ReadFile failed: %lu\n", (unsigned long)error);
+        // Check if device disconnected
+        if (is_usb_disconnection_error(error)) {
+          dprintf("SimGEKI: USB device disconnected.\n");
+          usb_cleanup();
+          return S_OK;
+        }
+        break;
+      }
+    }
+  }
+
+  // Check if the last GetOverlappedResult failed due to disconnection
+  if (packet_count == 0) {
+    DWORD error = GetLastError();
+    if (error != ERROR_IO_INCOMPLETE && error != ERROR_SUCCESS) {
+      // Check if device disconnected
+      if (is_usb_disconnection_error(error)) {
+        dprintf("SimGEKI: USB device disconnected (error: %lu).\n", (unsigned long)error);
+        usb_cleanup();
+        return S_OK;
+      }
     }
   }
 
@@ -279,7 +395,7 @@ void mu3_io_get_opbtns(uint8_t* opbtn) {
   return;
 #endif  // DEBUG_TEXT_ONLY
 #ifdef DEBUG
-  dprintf("SimGEKI: MU3 IO Get Operator Buttons\n");
+  // dprintf("SimGEKI: MU3 IO Get Operator Buttons\n");
 #endif  // DEBUG
   static uint8_t prevent_mu3_opbtn = 0;
   if (opbtn != NULL) {
@@ -305,7 +421,7 @@ void mu3_io_get_gamebtns(uint8_t* left, uint8_t* right) {
   return;
 #endif  // DEBUG_TEXT_ONLY
 #ifdef DEBUG
-  dprintf("SimGEKI: MU3 IO Get Game Buttons\n");
+  // dprintf("SimGEKI: MU3 IO Get Game Buttons\n");
 #endif  // DEBUG
   if (left != NULL) {
     *left = mu3_left_btn;
@@ -325,7 +441,7 @@ void mu3_io_get_lever(int16_t* pos) {
   return;
 #endif  // DEBUG_TEXT_ONLY
 #ifdef DEBUG
-  dprintf("SimGEKI: MU3 IO Get Lever Position\n");
+  // dprintf("SimGEKI: MU3 IO Get Lever Position\n");
 #endif  // DEBUG
   if (pos != NULL) {
     *pos = mu3_lever_pos;

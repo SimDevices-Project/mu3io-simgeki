@@ -7,8 +7,6 @@
 #include <winreg.h>
 #include <string.h>
 
-#define DEBUG
-
 HRESULT GetDeviceInterfaceFromRegistry(const char* hardwareId,
                                        char* path,
                                        size_t* path_size) {

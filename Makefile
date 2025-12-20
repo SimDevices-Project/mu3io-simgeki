@@ -24,9 +24,9 @@ OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%.o)
 TEST_OBJECTS = $(TEST_SOURCES:%.c=$(OBJDIR)/%.o)
 
 # Output files
-DLL_TARGET = $(BUILDDIR)/mu3io.dll
+DLL_TARGET = $(BUILDDIR)/simgeki_io.dll
 TEST_TARGET = $(BUILDDIR)/test.exe
-DEF_FILE = $(BUILDDIR)/mu3io.def
+DEF_FILE = $(BUILDDIR)/simgeki_io.def
 
 # Phony targets
 .PHONY: all clean dll test install check help
@@ -78,12 +78,12 @@ $(DEF_FILE): | $(BUILDDIR)
 dll-def: $(DLL_TARGET)-def
 
 $(DLL_TARGET)-def: $(OBJECTS) $(DEF_FILE) | $(BUILDDIR)
-	$(CC) -shared -o $(BUILDDIR)/mu3io-def.dll $(OBJECTS) $(LDFLAGS) -DMU3IO_EXPORTS $(DEF_FILE)
-	@echo "Built DLL with .def file: $(BUILDDIR)/mu3io-def.dll"
+	$(CC) -shared -o $(BUILDDIR)/simgeki_io-def.dll $(OBJECTS) $(LDFLAGS) -DMU3IO_EXPORTS $(DEF_FILE)
+	@echo "Built DLL with .def file: $(BUILDDIR)/simgeki_io-def.dll"
 
 # Install target (copy to common locations)
 install: dll
-	@echo "Installing mu3io.dll..."
+	@echo "Installing simgeki_io.dll..."
 	@if [ -d "/usr/local/lib" ]; then \
 		cp $(DLL_TARGET) /usr/local/lib/; \
 		echo "Installed to /usr/local/lib/"; \
@@ -109,7 +109,7 @@ clean:
 help:
 	@echo "Available targets:"
 	@echo "  all      - Build both DLL and test executable (default)"
-	@echo "  dll      - Build the mu3io.dll"
+	@echo "  dll      - Build the simgeki_io.dll"
 	@echo "  test     - Build the test executable"
 	@echo "  dll-def  - Build DLL with explicit .def file"
 	@echo "  check    - Check DLL exports"

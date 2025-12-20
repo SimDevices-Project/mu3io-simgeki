@@ -29,8 +29,8 @@ fi
 
 echo ""
 echo "3. Verifying build artifacts..."
-if [ ! -f "build/mu3io.dll" ]; then
-    echo "ERROR: mu3io.dll not found"
+if [ ! -f "build/simgeki_io.dll" ]; then
+    echo "ERROR: simgeki_io.dll not found"
     exit 1
 fi
 
@@ -64,8 +64,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -f "build/mu3io.def" ]; then
-    echo "ERROR: mu3io.def not found"
+if [ ! -f "build/simgeki_io.def" ]; then
+    echo "ERROR: simgeki_io.def not found"
     exit 1
 fi
 
@@ -83,16 +83,16 @@ echo "✓ DLL test program built successfully"
 
 echo ""
 echo "7. Verifying file sizes (sanity check)..."
-dll_size=$(stat -c%s "build/mu3io.dll")
+dll_size=$(stat -c%s "build/simgeki_io.dll")
 stub_size=$(stat -c%s "build/mu3io_stub.dll")
 test_size=$(stat -c%s "build/test.exe")
 
-echo "   mu3io.dll: $dll_size bytes"
+echo "   simgeki_io.dll: $dll_size bytes"
 echo "   mu3io_stub.dll: $stub_size bytes" 
 echo "   test.exe: $test_size bytes"
 
 if [ $dll_size -lt 100000 ]; then
-    echo "WARNING: mu3io.dll seems unusually small"
+    echo "WARNING: simgeki_io.dll seems unusually small"
 fi
 
 if [ $stub_size -lt 50000 ]; then
@@ -104,7 +104,7 @@ echo "✓ File sizes look reasonable"
 echo ""
 echo "8. Testing export verification for both DLLs..."
 echo "Regular DLL exports:"
-x86_64-w64-mingw32-objdump -x build/mu3io.dll | grep -A 10 "\[Ordinal/Name Pointer\]" | grep "mu3_io"
+x86_64-w64-mingw32-objdump -x build/simgeki_io.dll | grep -A 10 "\[Ordinal/Name Pointer\]" | grep "mu3_io"
 
 echo ""
 echo "Stub DLL exports:"
@@ -127,11 +127,11 @@ echo "ALL TESTS PASSED!"
 echo "=========================================="
 echo ""
 echo "Summary of available outputs:"
-echo "  - build/mu3io.dll        (Full HID-enabled DLL)"
+echo "  - build/simgeki_io.dll        (Full HID-enabled DLL)"
 echo "  - build/mu3io_stub.dll   (Stub DLL for testing)"
 echo "  - build/test.exe         (Original test program)"
 echo "  - build/dll_test.exe     (Comprehensive DLL test)"
-echo "  - build/mu3io.def        (Export definition file)"
+echo "  - build/simgeki_io.def        (Export definition file)"
 echo ""
 echo "The DLL initialization issues have been resolved:"
 echo "  ✓ Proper DllMain function added"
