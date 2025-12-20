@@ -13,7 +13,7 @@
 - LED writes reuse the same HID channel via `hid_write_data`; board `0x00` expects a 183-byte RGB map (indices mirrored between left/right segments) and board `0x01` packs 6 tri-color button LEDs into on/off bits.
 
 ## Build & test workflow
-- Linux cross-build: `make all` (DLL + `test.exe`), `make dll` (DLL only), `make check` (objdump export audit), `make dll-def` (emits `build/mu3io.def` for manual exports).
+- Linux cross-build: `make all` (DLL + `test.exe`), `make dll` (DLL only), `make check` (objdump export audit), `make dll-def` (emits `build/simgeki_io.def` for manual exports).
 - Windows local build: `build.bat` (DLL) and `buildtest.bat` (test exe) rely on `gcc -m64`; ensure `-lsetupapi` is linked.
 - Full regression script `test_all.sh` expects `x86_64-w64-mingw32-gcc` plus objdump; it also references `build/mu3io_stub.dll`—create or stub this artifact if you extend the script.
 - CI (`.github/workflows/build.yml`) runs on `ubuntu-latest`; keep new dependencies installable via `apt` before invoking `make`.

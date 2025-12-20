@@ -1,6 +1,6 @@
 # USB Reconnection Behavior
 
-This document describes the USB reconnection logic implemented in mu3io.dll.
+This document describes the USB reconnection logic implemented in simgeki_io.dll.
 
 ## Features
 
