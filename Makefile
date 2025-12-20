@@ -15,27 +15,24 @@ BUILDDIR = build
 OBJDIR = $(BUILDDIR)/obj
 
 # Source files
-SOURCES = mu3io.c hid.c
-STUB_SOURCES = mu3io_stub.c
-HEADERS = mu3io.h hid.h
+SOURCES = mu3io.c hid.c util/dprintf.c
+HEADERS = mu3io.h hid.h util/dprintf.h
 TEST_SOURCES = test.c
 
 # Object files
 OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%.o)
-STUB_OBJECTS = $(STUB_SOURCES:%.c=$(OBJDIR)/%.o)
 TEST_OBJECTS = $(TEST_SOURCES:%.c=$(OBJDIR)/%.o)
 
 # Output files
 DLL_TARGET = $(BUILDDIR)/mu3io.dll
-STUB_DLL_TARGET = $(BUILDDIR)/mu3io_stub.dll
 TEST_TARGET = $(BUILDDIR)/test.exe
 DEF_FILE = $(BUILDDIR)/mu3io.def
 
 # Phony targets
-.PHONY: all clean dll dll-stub test install check help
+.PHONY: all clean dll test install check help
 
 # Default target
-all: dll dll-stub test
+all: dll test
 
 # Create directories
 $(BUILDDIR):
@@ -43,9 +40,11 @@ $(BUILDDIR):
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
+	mkdir -p $(OBJDIR)/util
 
 # Object file compilation
 $(OBJDIR)/%.o: $(SRCDIR)/%.c $(HEADERS) | $(OBJDIR)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -DMU3IO_EXPORTS -c $< -o $@
 
 # DLL target
@@ -54,13 +53,6 @@ dll: $(DLL_TARGET)
 $(DLL_TARGET): $(OBJECTS) | $(BUILDDIR)
 	$(CC) -shared -o $@ $(OBJECTS) $(LDFLAGS) -DMU3IO_EXPORTS
 	@echo "Built DLL: $@"
-
-# Stub DLL target (no hardware dependency)
-dll-stub: $(STUB_DLL_TARGET)
-
-$(STUB_DLL_TARGET): $(STUB_OBJECTS) | $(BUILDDIR)
-	$(CC) -shared -o $@ $(STUB_OBJECTS) -lm -DMU3IO_EXPORTS
-	@echo "Built stub DLL: $@"
 
 # Test executable target
 test: $(TEST_TARGET)
@@ -118,7 +110,6 @@ help:
 	@echo "Available targets:"
 	@echo "  all      - Build both DLL and test executable (default)"
 	@echo "  dll      - Build the mu3io.dll"
-	@echo "  dll-stub - Build the mu3io_stub.dll (no hardware required)"
 	@echo "  test     - Build the test executable"
 	@echo "  dll-def  - Build DLL with explicit .def file"
 	@echo "  check    - Check DLL exports"
