@@ -7,6 +7,8 @@
 #include <hidclass.h>
 #include <stdint.h>
 
+// #define DEBUG
+
 HRESULT GetHidPathByVidPidMi(const char* vid,
                              const char* pid,
                              const char* mi,

@@ -172,6 +172,7 @@ static HRESULT usb_init(void) {
   dprintf("SimGEKI: Attempting to connect USB device...\n");
   
   // Try to get HID device path
+  hid_path_size = sizeof(hid_path);
   if (GetHidPathByVidPidMi(VID, PID, MI, hid_path, &hid_path_size) != S_OK) {
     dprintf("SimGEKI: USB device not found.\n");
     return S_FALSE;
@@ -281,7 +282,7 @@ HRESULT mu3_io_init(void) {
   
   // Initialize USB device, but don't fail if it's not connected
   HRESULT hr = usb_init();
-  if (SUCCEEDED(hr)) {
+  if (hr == S_OK) {
     dprintf("SimGEKI: USB device connected and initialized.\n");
   } else {
     dprintf("SimGEKI: USB device not connected, will retry during polling.\n");
@@ -299,7 +300,7 @@ HRESULT mu3_io_poll(void) {
   return S_OK;
 #endif  // DEBUG_TEXT_ONLY
 #ifdef DEBUG
-  dprintf("SimGEKI: MU3 IO Polling\n");
+  // dprintf("SimGEKI: MU3 IO Polling\n");
 #endif  // DEBUG
 
   // If USB is not connected, try to connect
@@ -309,8 +310,8 @@ HRESULT mu3_io_poll(void) {
     reconnect_counter++;
     if (reconnect_counter >= USB_RECONNECT_POLL_INTERVAL) {
       reconnect_counter = 0;
-      HRESULT hr = usb_init();
-      if (SUCCEEDED(hr)) {
+  HRESULT hr = usb_init();
+  if (hr == S_OK) {
         dprintf("SimGEKI: USB device reconnected successfully.\n");
       }
     }
@@ -394,7 +395,7 @@ void mu3_io_get_opbtns(uint8_t* opbtn) {
   return;
 #endif  // DEBUG_TEXT_ONLY
 #ifdef DEBUG
-  dprintf("SimGEKI: MU3 IO Get Operator Buttons\n");
+  // dprintf("SimGEKI: MU3 IO Get Operator Buttons\n");
 #endif  // DEBUG
   static uint8_t prevent_mu3_opbtn = 0;
   if (opbtn != NULL) {
@@ -420,7 +421,7 @@ void mu3_io_get_gamebtns(uint8_t* left, uint8_t* right) {
   return;
 #endif  // DEBUG_TEXT_ONLY
 #ifdef DEBUG
-  dprintf("SimGEKI: MU3 IO Get Game Buttons\n");
+  // dprintf("SimGEKI: MU3 IO Get Game Buttons\n");
 #endif  // DEBUG
   if (left != NULL) {
     *left = mu3_left_btn;
@@ -440,7 +441,7 @@ void mu3_io_get_lever(int16_t* pos) {
   return;
 #endif  // DEBUG_TEXT_ONLY
 #ifdef DEBUG
-  dprintf("SimGEKI: MU3 IO Get Lever Position\n");
+  // dprintf("SimGEKI: MU3 IO Get Lever Position\n");
 #endif  // DEBUG
   if (pos != NULL) {
     *pos = mu3_lever_pos;
