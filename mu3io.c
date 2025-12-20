@@ -21,6 +21,10 @@
 
 #define REPORT_SIZE 64  // 1B ReportID + 63B 数据
 
+// USB reconnection and timeout constants
+#define USB_RECONNECT_POLL_INTERVAL 60  // Polls between reconnection attempts
+#define USB_WRITE_TIMEOUT_MS 1000       // Write operation timeout in milliseconds
+
 static uint8_t mu3_opbtn;
 static uint8_t mu3_left_btn;
 static uint8_t mu3_right_btn;
@@ -41,6 +45,15 @@ OVERLAPPED ov_write = {0};  // 新增写用 OVERLAPPED
 
 // #define DEBUG
 // #define DEBUG_TEXT_ONLY
+
+// Check if error code indicates USB device disconnection
+static bool is_usb_disconnection_error(DWORD error) {
+  return (error == ERROR_BAD_COMMAND || 
+          error == ERROR_NOT_READY || 
+          error == ERROR_DEVICE_NOT_CONNECTED || 
+          error == ERROR_GEN_FAILURE ||
+          error == ERROR_OPERATION_ABORTED);
+}
 
 HRESULT hid_on_data(char* dat, size_t length) {
   HidconfigData* data = (HidconfigData*)dat;
@@ -226,8 +239,7 @@ HRESULT hid_write_data(const char* dat, size_t length) {
     DWORD error = GetLastError();
     dprintf("SimGEKI: WriteFile failed: %lu\n", (unsigned long)error);
     // Check if device disconnected
-    if (error == ERROR_BAD_COMMAND || error == ERROR_NOT_READY || 
-        error == ERROR_DEVICE_NOT_CONNECTED || error == ERROR_GEN_FAILURE) {
+    if (is_usb_disconnection_error(error)) {
       dprintf("SimGEKI: USB device appears to be disconnected.\n");
       usb_cleanup();
     }
@@ -235,7 +247,7 @@ HRESULT hid_write_data(const char* dat, size_t length) {
   }
 
   // 等待写操作完成
-  DWORD waitResult = WaitForSingleObject(ov_write.hEvent, 1000);
+  DWORD waitResult = WaitForSingleObject(ov_write.hEvent, USB_WRITE_TIMEOUT_MS);
   if (waitResult != WAIT_OBJECT_0) {
     dprintf("SimGEKI: Write operation timeout or failed.\n");
     return E_FAIL;
@@ -245,8 +257,7 @@ HRESULT hid_write_data(const char* dat, size_t length) {
     DWORD error = GetLastError();
     dprintf("SimGEKI: Overlapped write failed: %lu\n", (unsigned long)error);
     // Check if device disconnected
-    if (error == ERROR_BAD_COMMAND || error == ERROR_NOT_READY || 
-        error == ERROR_DEVICE_NOT_CONNECTED || error == ERROR_GEN_FAILURE) {
+    if (is_usb_disconnection_error(error)) {
       dprintf("SimGEKI: USB device appears to be disconnected.\n");
       usb_cleanup();
     }
@@ -296,7 +307,7 @@ HRESULT mu3_io_poll(void) {
     // Only try to reconnect every ~60 polls to avoid spamming
     static int reconnect_counter = 0;
     reconnect_counter++;
-    if (reconnect_counter >= 60) {
+    if (reconnect_counter >= USB_RECONNECT_POLL_INTERVAL) {
       reconnect_counter = 0;
       HRESULT hr = usb_init();
       if (SUCCEEDED(hr)) {
@@ -326,8 +337,7 @@ HRESULT mu3_io_poll(void) {
       if (error != ERROR_IO_PENDING) {
         dprintf("SimGEKI: ReadFile failed: %lu\n", (unsigned long)error);
         // Check if device disconnected
-        if (error == ERROR_BAD_COMMAND || error == ERROR_NOT_READY || 
-            error == ERROR_DEVICE_NOT_CONNECTED || error == ERROR_GEN_FAILURE) {
+        if (is_usb_disconnection_error(error)) {
           dprintf("SimGEKI: USB device disconnected.\n");
           usb_cleanup();
           return S_OK;
@@ -342,9 +352,7 @@ HRESULT mu3_io_poll(void) {
     DWORD error = GetLastError();
     if (error != ERROR_IO_INCOMPLETE && error != ERROR_SUCCESS) {
       // Check if device disconnected
-      if (error == ERROR_BAD_COMMAND || error == ERROR_NOT_READY || 
-          error == ERROR_DEVICE_NOT_CONNECTED || error == ERROR_GEN_FAILURE ||
-          error == ERROR_OPERATION_ABORTED) {
+      if (is_usb_disconnection_error(error)) {
         dprintf("SimGEKI: USB device disconnected (error: %lu).\n", (unsigned long)error);
         usb_cleanup();
         return S_OK;
