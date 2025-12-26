@@ -16,9 +16,9 @@ void test_api_version() {
 
 void test_hid_path() {
   print_separator("HID Path Test");
-  const char vid[9] = VID;
-  const char pid[9] = PID;
-  const char mi[6] = MI;
+  const char vid[9] = "VID_0CA3";
+  const char pid[9] = "PID_0021";
+  const char mi[6] = "MI_05";
   char path[1024];
   size_t path_size = 1024;
   
