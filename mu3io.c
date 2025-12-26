@@ -58,10 +58,12 @@ static bool is_usb_disconnection_error(DWORD error) {
 }
 
 void keyboard_dummy() {
-
   dummy_mu3_opbtn = mu3_opbtn;
   dummy_mu3_left_btn = mu3_left_btn;
   dummy_mu3_right_btn = mu3_right_btn;
+
+  dummy_mu3_left_btn ^= MU3_IO_GAMEBTN_SIDE;
+  dummy_mu3_right_btn ^= MU3_IO_GAMEBTN_SIDE;
 
   if (GetAsyncKeyState(cfg.test_keycode) & 0x8000) {
     dummy_mu3_opbtn |= MU3_IO_OPBTN_TEST;
@@ -82,7 +84,7 @@ void keyboard_dummy() {
     dummy_mu3_left_btn |= MU3_IO_GAMEBTN_3;
   }
   if (GetAsyncKeyState(cfg.gamebtn_Lside_keycode) & 0x8000) {
-    dummy_mu3_left_btn &= ~MU3_IO_GAMEBTN_SIDE;
+    dummy_mu3_left_btn |= MU3_IO_GAMEBTN_SIDE;
   }
   if (GetAsyncKeyState(cfg.gamebtn_Lmenu_keycode) & 0x8000) {
     dummy_mu3_left_btn |= MU3_IO_GAMEBTN_MENU;
@@ -97,11 +99,14 @@ void keyboard_dummy() {
     dummy_mu3_right_btn |= MU3_IO_GAMEBTN_3;
   }
   if (GetAsyncKeyState(cfg.gamebtn_Rside_keycode) & 0x8000) {
-    dummy_mu3_right_btn &= ~MU3_IO_GAMEBTN_SIDE;
+    dummy_mu3_right_btn |= MU3_IO_GAMEBTN_SIDE;
   }
   if (GetAsyncKeyState(cfg.gamebtn_Rmenu_keycode) & 0x8000) {
     dummy_mu3_right_btn |= MU3_IO_GAMEBTN_MENU;
   }
+
+  dummy_mu3_left_btn ^= MU3_IO_GAMEBTN_SIDE;
+  dummy_mu3_right_btn ^= MU3_IO_GAMEBTN_SIDE;
 }
 
 HRESULT hid_on_data(char* dat, size_t length) {
