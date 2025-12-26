@@ -15,8 +15,8 @@ BUILDDIR = build
 OBJDIR = $(BUILDDIR)/obj
 
 # Source files
-SOURCES = mu3io.c hid.c util/dprintf.c
-HEADERS = mu3io.h hid.h util/dprintf.h
+SOURCES = mu3io.c config.c hid.c util/dprintf.c
+HEADERS = mu3io.h config.h hid.h util/dprintf.h
 TEST_SOURCES = test.c
 
 # Object files

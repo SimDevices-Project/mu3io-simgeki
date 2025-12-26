@@ -11,7 +11,6 @@
 */
 
 #include <windows.h>
-
 #include <stdint.h>
 
 #ifdef MU3IO_EXPORTS
@@ -22,9 +21,6 @@
 
 // #define VID ("VID_8088")
 // #define PID ("PID_0101")
-#define VID ("VID_0CA3")
-#define PID ("PID_0021")
-#define MI ("MI_05")
 
 enum {
   MU3_IO_OPBTN_TEST = 0x01,

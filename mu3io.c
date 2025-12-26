@@ -17,18 +17,23 @@
 #include "util/dprintf.h"
 
 #include "mu3io.h"
+#include "config.h"
 #include "hid.h"
 
 #define REPORT_SIZE 64  // 1B ReportID + 63B 数据
 
 // USB reconnection and timeout constants
 #define USB_RECONNECT_POLL_INTERVAL 60  // Polls between reconnection attempts
-#define USB_WRITE_TIMEOUT_MS 1000       // Write operation timeout in milliseconds
+#define USB_WRITE_TIMEOUT_MS 1000  // Write operation timeout in milliseconds
 
 static uint8_t mu3_opbtn;
 static uint8_t mu3_left_btn;
 static uint8_t mu3_right_btn;
 static int16_t mu3_lever_pos;
+
+static uint8_t dummy_mu3_opbtn;
+static uint8_t dummy_mu3_left_btn;
+static uint8_t dummy_mu3_right_btn;
 
 static char hid_path[1024];
 static size_t hid_path_size = 1024;
@@ -38,21 +43,65 @@ static char hid_read_buf[REPORT_SIZE];
 static uint8_t poll_state = 0;
 static bool usb_connected = false;
 static bool usb_init_attempted = false;
-
 HANDLE hid_handle = NULL;
 OVERLAPPED ov_read = {0};
-OVERLAPPED ov_write = {0};  // 新增写用 OVERLAPPED
+OVERLAPPED ov_write = {0};
 
 // #define DEBUG
 // #define DEBUG_TEXT_ONLY
 
 // Check if error code indicates USB device disconnection
 static bool is_usb_disconnection_error(DWORD error) {
-  return (error == ERROR_BAD_COMMAND || 
-          error == ERROR_NOT_READY || 
-          error == ERROR_DEVICE_NOT_CONNECTED || 
-          error == ERROR_GEN_FAILURE ||
+  return (error == ERROR_BAD_COMMAND || error == ERROR_NOT_READY ||
+          error == ERROR_DEVICE_NOT_CONNECTED || error == ERROR_GEN_FAILURE ||
           error == ERROR_OPERATION_ABORTED);
+}
+
+void keyboard_dummy() {
+
+  dummy_mu3_opbtn = mu3_opbtn;
+  dummy_mu3_left_btn = mu3_left_btn;
+  dummy_mu3_right_btn = mu3_right_btn;
+
+  if (GetAsyncKeyState(cfg.test_keycode) & 0x8000) {
+    dummy_mu3_opbtn |= MU3_IO_OPBTN_TEST;
+  }
+  if (GetAsyncKeyState(cfg.coin_keycode) & 0x8000) {
+    dummy_mu3_opbtn |= MU3_IO_OPBTN_COIN;
+  }
+  if (GetAsyncKeyState(cfg.service_keycode) & 0x8000) {
+    dummy_mu3_opbtn |= MU3_IO_OPBTN_SERVICE;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_L1_keycode) & 0x8000) {
+    dummy_mu3_left_btn |= MU3_IO_GAMEBTN_1;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_L2_keycode) & 0x8000) {
+    dummy_mu3_left_btn |= MU3_IO_GAMEBTN_2;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_L3_keycode) & 0x8000) {
+    dummy_mu3_left_btn |= MU3_IO_GAMEBTN_3;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_Lside_keycode) & 0x8000) {
+    dummy_mu3_left_btn &= ~MU3_IO_GAMEBTN_SIDE;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_Lmenu_keycode) & 0x8000) {
+    dummy_mu3_left_btn |= MU3_IO_GAMEBTN_MENU;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_R1_keycode) & 0x8000) {
+    dummy_mu3_right_btn |= MU3_IO_GAMEBTN_1;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_R2_keycode) & 0x8000) {
+    dummy_mu3_right_btn |= MU3_IO_GAMEBTN_2;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_R3_keycode) & 0x8000) {
+    dummy_mu3_right_btn |= MU3_IO_GAMEBTN_3;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_Rside_keycode) & 0x8000) {
+    dummy_mu3_right_btn &= ~MU3_IO_GAMEBTN_SIDE;
+  }
+  if (GetAsyncKeyState(cfg.gamebtn_Rmenu_keycode) & 0x8000) {
+    dummy_mu3_right_btn |= MU3_IO_GAMEBTN_MENU;
+  }
 }
 
 HRESULT hid_on_data(char* dat, size_t length) {
@@ -168,18 +217,27 @@ static void usb_cleanup(void) {
 static HRESULT usb_init(void) {
   // Clean up any existing connection first
   usb_cleanup();
-  
+
   dprintf("SimGEKI: Attempting to connect USB device...\n");
-  
+
+  char vid_full[16] = {0};
+  char pid_full[16] = {0};
+  char mi_full[16] = {0};
+  snprintf(vid_full, sizeof(vid_full), "VID_%s", cfg.vid_num);
+  snprintf(pid_full, sizeof(pid_full), "PID_%s", cfg.pid_num);
+  snprintf(mi_full, sizeof(mi_full), "MI_%s", cfg.mi_num);
+
   // Try to get HID device path
   hid_path_size = sizeof(hid_path);
-  if (GetHidPathByVidPidMi(VID, PID, MI, hid_path, &hid_path_size) != S_OK) {
-    dprintf("SimGEKI: USB device not found.\n");
+  if (GetHidPathByVidPidMi(vid_full, pid_full, mi_full, hid_path,
+                           &hid_path_size) != S_OK) {
+    dprintf("SimGEKI: USB device not found. VID: %s, PID: %s, MI: %s\n",
+            vid_full, pid_full, mi_full);
     return S_FALSE;
   }
-  
+
   dprintf("SimGEKI: HID Path: %s\n", hid_path);
-  
+
   // Try to open the HID device
   hid_handle = CreateFileA(hid_path, GENERIC_READ | GENERIC_WRITE,
                            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
@@ -189,9 +247,9 @@ static HRESULT usb_init(void) {
     hid_handle = NULL;
     return S_FALSE;
   }
-  
+
   dprintf("SimGEKI: HID device opened successfully.\n");
-  
+
   // Create event for async read
   ov_read.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
   if (!ov_read.hEvent) {
@@ -199,7 +257,7 @@ static HRESULT usb_init(void) {
     hid_handle = NULL;
     return HRESULT_FROM_WIN32(GetLastError());
   }
-  
+
   // Create event for async write
   ov_write.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
   if (!ov_write.hEvent) {
@@ -209,7 +267,7 @@ static HRESULT usb_init(void) {
     hid_handle = NULL;
     return HRESULT_FROM_WIN32(GetLastError());
   }
-  
+
   // Start first async read
   ResetEvent(ov_read.hEvent);
   if (!ReadFile(hid_handle, hid_read_buf, REPORT_SIZE, NULL, &ov_read) &&
@@ -217,7 +275,7 @@ static HRESULT usb_init(void) {
     usb_cleanup();
     return HRESULT_FROM_WIN32(GetLastError());
   }
-  
+
   usb_connected = true;
   dprintf("SimGEKI: USB device initialized successfully.\n");
   return S_OK;
@@ -228,7 +286,8 @@ HRESULT hid_write_data(const char* dat, size_t length) {
   dprintf("SimGEKI: HID write data.\n");
   return S_OK;
 #endif  // DEBUG_TEXT_ONLY
-  if (!usb_connected || hid_handle == NULL || hid_handle == INVALID_HANDLE_VALUE) {
+  if (!usb_connected || hid_handle == NULL ||
+      hid_handle == INVALID_HANDLE_VALUE) {
     return S_FALSE;
   }
 
@@ -253,7 +312,7 @@ HRESULT hid_write_data(const char* dat, size_t length) {
     dprintf("SimGEKI: Write operation timeout or failed.\n");
     return E_FAIL;
   }
-  
+
   if (!GetOverlappedResult(hid_handle, &ov_write, &written, FALSE)) {
     DWORD error = GetLastError();
     dprintf("SimGEKI: Overlapped write failed: %lu\n", (unsigned long)error);
@@ -279,7 +338,20 @@ HRESULT mu3_io_init(void) {
 #endif  // DEBUG_TEXT_ONLY
   dprintf("SimGEKI: --- Begin configuration ---\n");
   dprintf("SimGEKI: IO init...\n");
-  
+
+  config_load_from_ini();
+#ifdef DEBUG
+  dprintf("SimGEKI: Keyboard enabled: %s\n",
+          cfg.keyboard_enabled != 0 ? "Yes" : "No");
+  dprintf("SimGEKI: VID: %s, PID: %s, MI: %s\n", cfg.vid_num, cfg.pid_num,
+          cfg.mi_num);
+
+  dprintf("SimGEKI: Test keycode: 0x%02X\n", cfg.test_keycode);
+  dprintf("SimGEKI: Service keycode: 0x%02X\n", cfg.service_keycode);
+  dprintf("SimGEKI: Coin keycode: 0x%02X\n", cfg.coin_keycode);
+
+#endif  // DEBUG
+
   // Initialize USB device, but don't fail if it's not connected
   HRESULT hr = usb_init();
   if (hr == S_OK) {
@@ -287,7 +359,6 @@ HRESULT mu3_io_init(void) {
   } else {
     dprintf("SimGEKI: USB device not connected, will retry during polling.\n");
   }
-  
   usb_init_attempted = true;
   dprintf("SimGEKI: ---  End  configuration ---\n");
   return S_OK;
@@ -310,8 +381,8 @@ HRESULT mu3_io_poll(void) {
     reconnect_counter++;
     if (reconnect_counter >= USB_RECONNECT_POLL_INTERVAL) {
       reconnect_counter = 0;
-  HRESULT hr = usb_init();
-  if (hr == S_OK) {
+      HRESULT hr = usb_init();
+      if (hr == S_OK) {
         dprintf("SimGEKI: USB device reconnected successfully.\n");
       }
     }
@@ -354,7 +425,8 @@ HRESULT mu3_io_poll(void) {
     if (error != ERROR_IO_INCOMPLETE && error != ERROR_SUCCESS) {
       // Check if device disconnected
       if (is_usb_disconnection_error(error)) {
-        dprintf("SimGEKI: USB device disconnected (error: %lu).\n", (unsigned long)error);
+        dprintf("SimGEKI: USB device disconnected (error: %lu).\n",
+                (unsigned long)error);
         usb_cleanup();
         return S_OK;
       }
@@ -399,14 +471,24 @@ void mu3_io_get_opbtns(uint8_t* opbtn) {
 #endif  // DEBUG
   static uint8_t prevent_mu3_opbtn = 0;
   if (opbtn != NULL) {
-    *opbtn = 0;
-    *opbtn = mu3_opbtn;
-    if ((mu3_opbtn & MU3_IO_OPBTN_COIN) &&
-        (prevent_mu3_opbtn & MU3_IO_OPBTN_COIN)) {
-      *opbtn &= ~MU3_IO_OPBTN_COIN;  // 禁止重复投币
+    if (cfg.keyboard_enabled) {
+      keyboard_dummy();
+      *opbtn = 0;
+      *opbtn = dummy_mu3_opbtn;
+      if ((dummy_mu3_opbtn & MU3_IO_OPBTN_COIN) &&
+          (prevent_mu3_opbtn & MU3_IO_OPBTN_COIN)) {
+        *opbtn &= ~MU3_IO_OPBTN_COIN;  // 禁止重复投币
+      }
+    } else {
+      *opbtn = 0;
+      *opbtn = mu3_opbtn;
+      if ((mu3_opbtn & MU3_IO_OPBTN_COIN) &&
+          (prevent_mu3_opbtn & MU3_IO_OPBTN_COIN)) {
+        *opbtn &= ~MU3_IO_OPBTN_COIN;  // 禁止重复投币
+      }
     }
   }
-  prevent_mu3_opbtn = mu3_opbtn;
+  prevent_mu3_opbtn = cfg.keyboard_enabled != 0 ? dummy_mu3_opbtn : mu3_opbtn;
 }
 
 void mu3_io_get_gamebtns(uint8_t* left, uint8_t* right) {
@@ -424,11 +506,10 @@ void mu3_io_get_gamebtns(uint8_t* left, uint8_t* right) {
   // dprintf("SimGEKI: MU3 IO Get Game Buttons\n");
 #endif  // DEBUG
   if (left != NULL) {
-    *left = mu3_left_btn;
+    *left = cfg.keyboard_enabled != 0 ? dummy_mu3_left_btn : mu3_left_btn;
   }
-
   if (right != NULL) {
-    *right = mu3_right_btn;
+    *right = cfg.keyboard_enabled != 0 ? dummy_mu3_right_btn : mu3_right_btn;
   }
 }
 
