@@ -125,4 +125,4 @@ The repository includes several testing options:
 
 ## License
 
-This project is provided as-is for educational and development purposes.
+This project is licensed under the [GNU Affero General Public License v3.0](./LICENSE).
