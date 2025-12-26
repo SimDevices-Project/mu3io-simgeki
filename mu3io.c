@@ -26,10 +26,10 @@
 #define USB_RECONNECT_POLL_INTERVAL 60  // Polls between reconnection attempts
 #define USB_WRITE_TIMEOUT_MS 1000  // Write operation timeout in milliseconds
 
-static uint8_t mu3_opbtn;
-static uint8_t mu3_left_btn;
-static uint8_t mu3_right_btn;
-static int16_t mu3_lever_pos;
+static uint8_t mu3_opbtn = 0;
+static uint8_t mu3_left_btn = 0;
+static uint8_t mu3_right_btn = 0;
+static int16_t mu3_lever_pos = 0;
 
 static uint8_t dummy_mu3_opbtn;
 static uint8_t dummy_mu3_left_btn;
@@ -61,9 +61,6 @@ void keyboard_dummy() {
   dummy_mu3_opbtn = mu3_opbtn;
   dummy_mu3_left_btn = mu3_left_btn;
   dummy_mu3_right_btn = mu3_right_btn;
-
-  dummy_mu3_left_btn ^= MU3_IO_GAMEBTN_SIDE;
-  dummy_mu3_right_btn ^= MU3_IO_GAMEBTN_SIDE;
 
   if (GetAsyncKeyState(cfg.test_keycode) & 0x8000) {
     dummy_mu3_opbtn |= MU3_IO_OPBTN_TEST;
@@ -104,9 +101,6 @@ void keyboard_dummy() {
   if (GetAsyncKeyState(cfg.gamebtn_Rmenu_keycode) & 0x8000) {
     dummy_mu3_right_btn |= MU3_IO_GAMEBTN_MENU;
   }
-
-  dummy_mu3_left_btn ^= MU3_IO_GAMEBTN_SIDE;
-  dummy_mu3_right_btn ^= MU3_IO_GAMEBTN_SIDE;
 }
 
 HRESULT hid_on_data(char* dat, size_t length) {
