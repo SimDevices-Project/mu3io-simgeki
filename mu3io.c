@@ -385,6 +385,8 @@ HRESULT mu3_io_poll(void) {
         dprintf("SimGEKI: USB device reconnected successfully.\n");
       }
     }
+    // Set poll state to 0 since we're not connected
+    poll_state = 0;
     return S_OK;
   }
 
