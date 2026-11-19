@@ -10,6 +10,12 @@ A simulator IO library for MU3 (Ongeki) arcade games that provides HID device co
 - LED control for RGB lighting effects
 - Comprehensive build system with Makefile
 
+## Release downloads
+
+Download `simgeki-io-windows-x64.zip` from [Releases](https://github.com/SimDevices-Project/mu3io-simgeki/releases) and extract `simgeki_io.dll` and `simgeki_io.ini` into the same directory.
+
+GitHub Actions checks the default branch daily at 03:00 UTC+8. When the commit changes, it updates the rolling `nightly` tag and replaces the ZIP on the Nightly pre-release. Publishing a release manually builds the tagged commit and uploads the ZIP to that release, preserving its title, notes, and other assets.
+
 ## Building
 
 ### Prerequisites

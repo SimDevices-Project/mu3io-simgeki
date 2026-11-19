@@ -1,0 +1,75 @@
+name: Publish release package
+
+on:
+  schedule:
+    - cron: '0 19 * * *' # 03:00 UTC+8
+  release:
+    types: [published]
+
+concurrency:
+  group: release-package-${{ github.event.release.tag_name || 'nightly' }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PACKAGE: simgeki-io-windows-x64.zip
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'schedule' && github.event.repository.default_branch || github.sha }}
+
+      - name: Check the current Nightly
+        id: nightly
+        if: github.event_name == 'schedule'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if release=$(gh release view nightly --json isPrerelease,isDraft,assets); then
+            if ! jq -e '.isPrerelease and (.isDraft | not)' <<< "$release" > /dev/null; then
+              echo "::error::The nightly tag already belongs to a draft or a stable release."
+              exit 1
+            fi
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            sha=$(git rev-parse HEAD)
+            tag=$(git ls-remote --refs origin refs/tags/nightly | cut -f1)
+            if [[ "$tag" == "$sha" ]] && jq -e --arg name "$PACKAGE" --arg label "$PACKAGE ($sha)" \
+              'any(.assets[]; .name == $name and .label == $label and .state == "uploaded")' \
+              <<< "$release" > /dev/null; then
+              echo "current=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Build and package the Windows DLL
+        if: steps.nightly.outputs.current != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64
+          make dll
+          python3 -m zipfile -c "$PACKAGE" build/simgeki_io.dll simgeki_io.ini
+          unzip -t "$PACKAGE"
+
+      - name: Publish Nightly
+        if: github.event_name == 'schedule' && steps.nightly.outputs.current != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_EXISTS: ${{ steps.nightly.outputs.exists }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          if [[ "$RELEASE_EXISTS" != true ]]; then
+            gh release create nightly --target "$sha" --prerelease --latest=false \
+              --title Nightly --notes "Rolling Windows x64 build from the default branch."
+          fi
+          gh release upload nightly "$PACKAGE#$PACKAGE ($sha)" --clobber
+          git push --force origin HEAD:refs/tags/nightly
+
+      - name: Attach package to the published release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload --clobber -- "$TAG" "$PACKAGE"
